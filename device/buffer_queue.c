@@ -49,6 +49,7 @@ bool buffer_consumed(buffer_t *buf, const char *who)
     // Assign or clone timestamp
     if (buf->buf_list->do_timestamps) {
       buf->captured_time_us = get_monotonic_time_us(NULL, NULL);
+      buf->sensor_ts_us = buf->captured_time_us;
     }
 
     if (buf->buf_list->dev->hw->buffer_enqueue(buf, who) < 0) {
@@ -117,6 +118,7 @@ int buffer_list_enqueue(buffer_list_t *buf_list, buffer_t *dma_buf)
 
   buf->flags = dma_buf->flags;
   buf->captured_time_us = dma_buf->captured_time_us;
+  buf->sensor_ts_us = dma_buf->sensor_ts_us;
   buf->crop = dma_buf->crop;
 
   if (buf_list->do_mmap) {

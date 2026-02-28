@@ -32,6 +32,7 @@ const el = {
   cropW: document.getElementById('cropW'),
   cropH: document.getElementById('cropH'),
   captureTs: document.getElementById('captureTs'),
+  sensorTs: document.getElementById('sensorTs'),
   updatedAt: document.getElementById('updatedAt'),
   video: document.getElementById('stream')
 };
@@ -200,7 +201,7 @@ function parseSeiFromFrame(frameData) {
       const payload = rbsp.slice(off, off + payloadSize);
       off += payloadSize;
 
-      if (payloadType !== 5 || payload.length < 52) continue;
+      if (payloadType !== 5 || payload.length < 60) continue;
 
       let uuidMatch = true;
       for (let i = 0; i < 16; i++) {
@@ -217,7 +218,8 @@ function parseSeiFromFrame(frameData) {
       const width = readU32BE(msg, 20);
       const height = readU32BE(msg, 24);
       const captureTsUs = readU64BE(msg, 28);
-      return { frameId, x, y, width, height, captureTsUs };
+      const sensorTsUs = readU64BE(msg, 36);
+      return { frameId, x, y, width, height, captureTsUs, sensorTsUs };
     }
   }
 
@@ -233,6 +235,7 @@ function onMetadata(meta) {
   el.cropW.textContent = String(meta.width);
   el.cropH.textContent = String(meta.height);
   el.captureTs.textContent = String(meta.captureTsUs);
+  el.sensorTs.textContent = String(meta.sensorTsUs);
   el.updatedAt.textContent = new Date().toLocaleTimeString();
   readCropFromSei(meta);
 }

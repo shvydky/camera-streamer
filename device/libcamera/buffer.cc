@@ -151,6 +151,7 @@ int libcamera_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
   uint64_t now_us = get_monotonic_time_us(NULL, NULL);
 
   (*bufp)->captured_time_us = now_us - (boot_time_us - sensor_timestamp_us);
+  (*bufp)->sensor_ts_us = sensor_timestamp_us ? sensor_timestamp_us : (*bufp)->captured_time_us;
   (*bufp)->used = 0;
 
   for (auto &bufferMap : (*bufp)->libcamera->request->buffers()) {

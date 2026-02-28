@@ -42,7 +42,7 @@ typedef struct buffer_s {
   int mmap_reflinks;
   buffer_t *dma_source;
   bool enqueued;
-  uint64_t enqueue_time_us, captured_time_us;
+  uint64_t enqueue_time_us, captured_time_us, sensor_ts_us;
 } buffer_t;
 
 buffer_t *buffer_open(const char *name, buffer_list_t *buf_list, int buffer);

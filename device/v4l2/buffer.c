@@ -238,6 +238,7 @@ int v4l2_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
   buf->flags.is_keyframe = (v4l2_buf.flags & V4L2_BUF_FLAG_KEYFRAME) != 0;
   buf->flags.is_last = (v4l2_buf.flags & V4L2_BUF_FLAG_LAST) != 0;
   buf->captured_time_us = get_time_us(CLOCK_FROM_PARAMS, NULL, &v4l2_buf.timestamp, 0);
+  buf->sensor_ts_us = buf->captured_time_us;
   if (!v4l2_crop_ring_lookup(buf_list, buf->captured_time_us, buf)) {
     // Fallback for sources/paths that do not preserve timestamps.
     buf->crop.x = 0;

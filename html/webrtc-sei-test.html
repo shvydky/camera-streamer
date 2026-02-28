@@ -42,6 +42,7 @@
         <span class="k">Width</span><span id="cropW">-</span>
         <span class="k">Height</span><span id="cropH">-</span>
         <span class="k">capture_ts_us</span><span id="captureTs">-</span>
+        <span class="k">sensor_ts_us</span><span id="sensorTs">-</span>
         <span class="k">Updated</span><span id="updatedAt">-</span>
       </div>
     </aside>
@@ -72,6 +73,7 @@
       cropW: document.getElementById('cropW'),
       cropH: document.getElementById('cropH'),
       captureTs: document.getElementById('captureTs'),
+      sensorTs: document.getElementById('sensorTs'),
       updatedAt: document.getElementById('updatedAt'),
       video: document.getElementById('stream')
     };
@@ -157,7 +159,7 @@
           const payload = rbsp.slice(off, off + payloadSize);
           off += payloadSize;
 
-          if (payloadType !== 5 || payload.length < 16 + 36) continue;
+          if (payloadType !== 5 || payload.length < 16 + 44) continue;
 
           let uuidMatch = true;
           for (let i = 0; i < 16; i++) {
@@ -176,7 +178,8 @@
           const width = readU32BE(msg, 20);
           const height = readU32BE(msg, 24);
           const captureTsUs = readU64BE(msg, 28);
-          return { frameId, x, y, width, height, captureTsUs };
+          const sensorTsUs = readU64BE(msg, 36);
+          return { frameId, x, y, width, height, captureTsUs, sensorTsUs };
         }
       }
 
@@ -192,6 +195,7 @@
       el.cropW.textContent = String(meta.width);
       el.cropH.textContent = String(meta.height);
       el.captureTs.textContent = String(meta.captureTsUs);
+      el.sensorTs.textContent = String(meta.sensorTsUs);
       el.updatedAt.textContent = new Date().toLocaleTimeString();
     }
 
