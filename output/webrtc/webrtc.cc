@@ -123,9 +123,10 @@ static rtc::binary prepend_sei_metadata(const rtc::binary &h264, uint64_t frame_
     return h264;
   }
 
-  // Metadata schema v2:
-  // magic[4]="CSM1", frame_id(u64), x(i32), y(i32), width(u32), height(u32), capture_ts_us(u64), sensor_ts_us(u64)
-  uint8_t payload[4 + 8 + 4 + 4 + 4 + 4 + 8 + 8] = {0};
+  // Metadata schema v3:
+  // magic[4]="CSM1", frame_id(u64), x(i32), y(i32), width(u32), height(u32),
+  // capture_ts_us(u64), sensor_ts_us(u64), sensor_epoch_us(u64)
+  uint8_t payload[4 + 8 + 4 + 4 + 4 + 4 + 8 + 8 + 8] = {0};
   payload[0] = 'C';
   payload[1] = 'S';
   payload[2] = 'M';
@@ -136,7 +137,21 @@ static rtc::binary prepend_sei_metadata(const rtc::binary &h264, uint64_t frame_
   write_u32_be(payload + 20, buf->crop.width);
   write_u32_be(payload + 24, buf->crop.height);
   write_u64_be(payload + 28, buf->captured_time_us);
-  write_u64_be(payload + 36, buf->sensor_ts_us ? buf->sensor_ts_us : buf->captured_time_us);
+  uint64_t sensor_ts_us = buf->sensor_ts_us ? buf->sensor_ts_us : buf->captured_time_us;
+  write_u64_be(payload + 36, sensor_ts_us);
+
+  uint64_t sensor_epoch_us = 0;
+  uint64_t realtime_now_us = get_time_us(CLOCK_REALTIME, NULL, NULL, 0);
+  uint64_t boottime_now_us = get_time_us(CLOCK_BOOTTIME, NULL, NULL, 0);
+  if (realtime_now_us > 0 && boottime_now_us > 0 && sensor_ts_us > 0) {
+    // Convert BOOTTIME-based sensor timestamp to CLOCK_REALTIME epoch domain.
+    if (boottime_now_us >= sensor_ts_us) {
+      sensor_epoch_us = realtime_now_us - (boottime_now_us - sensor_ts_us);
+    } else {
+      sensor_epoch_us = realtime_now_us + (sensor_ts_us - boottime_now_us);
+    }
+  }
+  write_u64_be(payload + 44, sensor_epoch_us);
 
   static const std::array<uint8_t, 16> kUuid = {
     0x92, 0x4b, 0xa7, 0x5e, 0xe1, 0x2f, 0x4a, 0x3b,
