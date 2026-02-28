@@ -7,6 +7,8 @@ extern unsigned char html_index_html[];
 extern unsigned int html_index_html_len;
 extern unsigned char html_webrtc_html[];
 extern unsigned int html_webrtc_html_len;
+extern unsigned char html_webrtc_sei_test_html[];
+extern unsigned int html_webrtc_sei_test_html_len;
 extern unsigned char html_control_html[];
 extern unsigned int html_control_html_len;
 extern camera_t *camera;
@@ -90,6 +92,7 @@ http_method_t http_methods[] = {
   { "GET",  "/video.mkv", http_mkv_video },
   { "GET",  "/video.mp4", http_mp4_video },
   { "GET",  "/webrtc", http_content, "text/html", html_webrtc_html, 0, &html_webrtc_html_len },
+  { "GET",  "/webrtc-sei-test", http_content, "text/html", html_webrtc_sei_test_html, 0, &html_webrtc_sei_test_html_len },
   { "POST", "/webrtc", http_webrtc_offer },
   { "GET",  "/control", http_content, "text/html", html_control_html, 0, &html_control_html_len },
   { "GET",  "/option", camera_post_option },

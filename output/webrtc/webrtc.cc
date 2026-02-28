@@ -29,6 +29,8 @@ extern "C" {
 #include <atomic>
 #include <chrono>
 #include <set>
+#include <vector>
+#include <array>
 #include <rtc/peerconnection.hpp>
 #include <rtc/rtcpsrreporter.hpp>
 #include <rtc/h264rtppacketizer.hpp>
@@ -53,6 +55,107 @@ static rtc::Configuration webrtc_configuration = {
 
 std::shared_ptr<Client> webrtc_find_client(std::string id);
 void webrtc_remove_client(const std::shared_ptr<Client> &client, const char *reason);
+
+static void write_u32_be(uint8_t *p, uint32_t v)
+{
+  p[0] = (uint8_t)(v >> 24);
+  p[1] = (uint8_t)(v >> 16);
+  p[2] = (uint8_t)(v >> 8);
+  p[3] = (uint8_t)(v);
+}
+
+static void write_u64_be(uint8_t *p, uint64_t v)
+{
+  p[0] = (uint8_t)(v >> 56);
+  p[1] = (uint8_t)(v >> 48);
+  p[2] = (uint8_t)(v >> 40);
+  p[3] = (uint8_t)(v >> 32);
+  p[4] = (uint8_t)(v >> 24);
+  p[5] = (uint8_t)(v >> 16);
+  p[6] = (uint8_t)(v >> 8);
+  p[7] = (uint8_t)(v);
+}
+
+static std::vector<uint8_t> rbsp_escape(const uint8_t *data, size_t len)
+{
+  std::vector<uint8_t> out;
+  out.reserve(len + len / 32 + 8);
+
+  int zeros = 0;
+  for (size_t i = 0; i < len; i++) {
+    uint8_t b = data[i];
+    if (zeros >= 2 && b <= 0x03) {
+      out.push_back(0x03);
+      zeros = 0;
+    }
+    out.push_back(b);
+    zeros = (b == 0) ? (zeros + 1) : 0;
+  }
+
+  return out;
+}
+
+static rtc::binary prepend_sei_metadata(const rtc::binary &h264, uint64_t frame_id, buffer_t *buf)
+{
+  if (h264.size() < 5 || !buf) {
+    return h264;
+  }
+
+  // Metadata schema v1:
+  // magic[4]="CSM1", frame_id(u64), x(i32), y(i32), width(u32), height(u32), capture_ts_us(u64)
+  uint8_t payload[4 + 8 + 4 + 4 + 4 + 4 + 8] = {0};
+  payload[0] = 'C';
+  payload[1] = 'S';
+  payload[2] = 'M';
+  payload[3] = '1';
+  write_u64_be(payload + 4, frame_id);
+  write_u32_be(payload + 12, (uint32_t)buf->crop.x);
+  write_u32_be(payload + 16, (uint32_t)buf->crop.y);
+  write_u32_be(payload + 20, buf->crop.width);
+  write_u32_be(payload + 24, buf->crop.height);
+  write_u64_be(payload + 28, buf->captured_time_us);
+
+  static const std::array<uint8_t, 16> kUuid = {
+    0x92, 0x4b, 0xa7, 0x5e, 0xe1, 0x2f, 0x4a, 0x3b,
+    0x98, 0x6d, 0x43, 0x19, 0x18, 0x4a, 0xf0, 0x77
+  };
+
+  std::vector<uint8_t> sei_user_data;
+  sei_user_data.reserve(kUuid.size() + sizeof(payload));
+  sei_user_data.insert(sei_user_data.end(), kUuid.begin(), kUuid.end());
+  sei_user_data.insert(sei_user_data.end(), payload, payload + sizeof(payload));
+
+  std::vector<uint8_t> rbsp;
+  const size_t payload_size = sei_user_data.size();
+  rbsp.reserve(4 + payload_size + 2);
+
+  // payloadType = 5 (user_data_unregistered)
+  rbsp.push_back(5);
+  // payloadSize can use multiple 0xFF bytes
+  size_t n = payload_size;
+  while (n >= 0xff) {
+    rbsp.push_back(0xff);
+    n -= 0xff;
+  }
+  rbsp.push_back((uint8_t)n);
+  rbsp.insert(rbsp.end(), sei_user_data.begin(), sei_user_data.end());
+  rbsp.push_back(0x80); // rbsp_trailing_bits
+
+  std::vector<uint8_t> escaped = rbsp_escape(rbsp.data(), rbsp.size());
+
+  rtc::binary out;
+  out.reserve(4 + 1 + escaped.size() + h264.size());
+  out.push_back((std::byte)0x00);
+  out.push_back((std::byte)0x00);
+  out.push_back((std::byte)0x00);
+  out.push_back((std::byte)0x01);
+  out.push_back((std::byte)0x06); // nal_unit_type = SEI
+  for (auto b : escaped) {
+    out.push_back((std::byte)b);
+  }
+  out.insert(out.end(), h264.begin(), h264.end());
+  return out;
+}
 
 struct ClientTrackData
 {
@@ -171,6 +274,7 @@ public:
     }
 
     rtc::binary data((std::byte*)buf->start, (std::byte*)buf->start + buf->used);
+    data = prepend_sei_metadata(data, ++frame_id, buf);
     video->sendTime();
     video->track->send(data);
   }
@@ -213,6 +317,7 @@ public:
   bool has_set_sdp_answer = false;
   bool had_key_frame = false;
   bool requested_key_frame = false;
+  uint64_t frame_id = 0;
   uint64_t last_ping_us = 0;
   uint64_t last_pong_us = 0;
   uint64_t deadline_us = 0;
