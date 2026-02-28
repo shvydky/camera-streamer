@@ -153,6 +153,11 @@ int v4l2_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
   buf->flags.is_keyframe = (v4l2_buf.flags & V4L2_BUF_FLAG_KEYFRAME) != 0;
   buf->flags.is_last = (v4l2_buf.flags & V4L2_BUF_FLAG_LAST) != 0;
   buf->captured_time_us = get_time_us(CLOCK_FROM_PARAMS, NULL, &v4l2_buf.timestamp, 0);
+  // V4L2 path does not provide crop metadata directly, fallback to full frame.
+  buf->crop.x = 0;
+  buf->crop.y = 0;
+  buf->crop.width = buf_list->fmt.width;
+  buf->crop.height = buf_list->fmt.height;
   return 0;
 
 error:

@@ -161,6 +161,21 @@ int libcamera_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
     }
   }
 
+  // Extract ScalerCrop from metadata when available.
+  std::optional<libcamera::Rectangle> scaler_crop((*bufp)->libcamera->request->metadata().
+    get<libcamera::Rectangle>(libcamera::controls::ScalerCrop));
+  if (scaler_crop.has_value()) {
+    (*bufp)->crop.x = scaler_crop->x;
+    (*bufp)->crop.y = scaler_crop->y;
+    (*bufp)->crop.width = scaler_crop->width;
+    (*bufp)->crop.height = scaler_crop->height;
+  } else {
+    (*bufp)->crop.x = 0;
+    (*bufp)->crop.y = 0;
+    (*bufp)->crop.width = buf_list->fmt.width;
+    (*bufp)->crop.height = buf_list->fmt.height;
+  }
+
   if (index == 0) {
     libcamera_buffer_dump_metadata(*bufp);
   }

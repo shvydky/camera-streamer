@@ -45,6 +45,10 @@ int dummy_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
   }
 
   *bufp = buf_list->bufs[index];
+  (*bufp)->crop.x = 0;
+  (*bufp)->crop.y = 0;
+  (*bufp)->crop.width = buf_list->fmt.width;
+  (*bufp)->crop.height = buf_list->fmt.height;
   return 0;
 }
 

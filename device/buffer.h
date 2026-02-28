@@ -30,6 +30,14 @@ typedef struct buffer_s {
     struct buffer_libcamera_s *libcamera;
   };
 
+  // Crop information (x, y, width, height)
+  struct {
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
+  } crop;
+
   // State
   int mmap_reflinks;
   buffer_t *dma_source;

@@ -1,0 +1,13 @@
+{
+  "name": "camera-streamer-electron-sei-test",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron test client for WebRTC in-band SEI metadata",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

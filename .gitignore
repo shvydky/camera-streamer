@@ -15,3 +15,4 @@ tmp/
 /debian/files
 /debian/*.log
 /debian/camera-streamer*/
+tests/electron-sei-test/node_modules/

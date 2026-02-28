@@ -117,6 +117,7 @@ int buffer_list_enqueue(buffer_list_t *buf_list, buffer_t *dma_buf)
 
   buf->flags = dma_buf->flags;
   buf->captured_time_us = dma_buf->captured_time_us;
+  buf->crop = dma_buf->crop;
 
   if (buf_list->do_mmap) {
     if (dma_buf->used > buf->length) {
