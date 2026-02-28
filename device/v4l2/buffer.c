@@ -5,6 +5,7 @@
 #include "util/opts/log.h"
 
 #include <pthread.h>
+#include <inttypes.h>
 
 typedef struct {
   int dev_fd;
@@ -21,6 +22,8 @@ typedef struct {
 static v4l2_crop_entry_t v4l2_crop_ring[V4L2_CROP_RING_SIZE];
 static size_t v4l2_crop_ring_pos = 0;
 static pthread_mutex_t v4l2_crop_ring_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t v4l2_crop_match_hits = 0;
+static uint64_t v4l2_crop_match_misses = 0;
 
 static void v4l2_crop_ring_record(buffer_t *buf)
 {
@@ -46,20 +49,42 @@ static bool v4l2_crop_ring_lookup(buffer_list_t *buf_list, uint64_t ts_us, buffe
     return false;
   }
 
+  uint64_t match_window_us = log_options.v4l2_crop_match_us;
+  uint64_t best_delta = UINT64_MAX;
+  v4l2_crop_entry_t *best = NULL;
   bool found = false;
   pthread_mutex_lock(&v4l2_crop_ring_lock);
   for (size_t i = 0; i < V4L2_CROP_RING_SIZE; i++) {
     v4l2_crop_entry_t *entry = &v4l2_crop_ring[i];
-    if (entry->dev_fd == buf_list->v4l2->dev_fd && entry->ts_us == ts_us) {
-      out_buf->crop.x = entry->crop.x;
-      out_buf->crop.y = entry->crop.y;
-      out_buf->crop.width = entry->crop.width;
-      out_buf->crop.height = entry->crop.height;
-      found = true;
-      break;
+    if (entry->dev_fd != buf_list->v4l2->dev_fd || entry->ts_us == 0) {
+      continue;
+    }
+
+    uint64_t delta = entry->ts_us > ts_us ? (entry->ts_us - ts_us) : (ts_us - entry->ts_us);
+    if (delta <= match_window_us && delta < best_delta) {
+      best_delta = delta;
+      best = entry;
     }
   }
+
+  if (best) {
+    out_buf->crop.x = best->crop.x;
+    out_buf->crop.y = best->crop.y;
+    out_buf->crop.width = best->crop.width;
+    out_buf->crop.height = best->crop.height;
+    found = true;
+    v4l2_crop_match_hits++;
+  } else {
+    v4l2_crop_match_misses++;
+  }
   pthread_mutex_unlock(&v4l2_crop_ring_lock);
+
+  uint64_t total = v4l2_crop_match_hits + v4l2_crop_match_misses;
+  if (total > 0 && (total % 300) == 0) {
+    LOG_DEBUG(buf_list, "V4L2 crop match stats: hits=%" PRIu64 " misses=%" PRIu64 " window_us=%" PRIu64,
+      v4l2_crop_match_hits, v4l2_crop_match_misses, match_window_us);
+  }
+
   return found;
 }
 

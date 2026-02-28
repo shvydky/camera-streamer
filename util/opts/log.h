@@ -27,6 +27,7 @@ typedef struct log_options_s {
   bool debug;
   bool verbose;
 	unsigned stats;
+  unsigned long v4l2_crop_match_us;
   char filter[256];
 } log_options_t;
 

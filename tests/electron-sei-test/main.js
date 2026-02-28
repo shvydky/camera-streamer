@@ -3,7 +3,16 @@ const path = require('path');
 
 app.commandLine.appendSwitch('enable-blink-features', 'RTCInsertableStreams');
 
+function parseArgValue(name) {
+  const prefix = `--${name}=`;
+  const arg = process.argv.find((a) => a.startsWith(prefix));
+  if (!arg) return '';
+  return arg.slice(prefix.length);
+}
+
 function createWindow() {
+  const signalUrl = parseArgValue('video-url') || parseArgValue('signal-url') || '';
+
   const win = new BrowserWindow({
     width: 1320,
     height: 860,
@@ -15,7 +24,9 @@ function createWindow() {
     }
   });
 
-  win.loadFile(path.join(__dirname, 'index.html'));
+  win.loadFile(path.join(__dirname, 'index.html'), {
+    query: signalUrl ? { signal: signalUrl } : {}
+  });
 }
 
 app.whenReady().then(createWindow);

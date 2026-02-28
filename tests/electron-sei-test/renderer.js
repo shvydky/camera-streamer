@@ -11,8 +11,17 @@ let seiCount = 0;
 const el = {
   status: document.getElementById('status'),
   signal: document.getElementById('signal'),
+  sensorSize: document.getElementById('sensorSize'),
   connect: document.getElementById('connect'),
   disconnect: document.getElementById('disconnect'),
+  zoomIn: document.getElementById('zoomIn'),
+  zoomOut: document.getElementById('zoomOut'),
+  moveUp: document.getElementById('moveUp'),
+  moveDown: document.getElementById('moveDown'),
+  moveLeft: document.getElementById('moveLeft'),
+  moveRight: document.getElementById('moveRight'),
+  resetCrop: document.getElementById('resetCrop'),
+  cropValue: document.getElementById('cropValue'),
   encodedSupport: document.getElementById('encodedSupport'),
   renderedFrames: document.getElementById('renderedFrames'),
   encodedFrames: document.getElementById('encodedFrames'),
@@ -27,9 +36,90 @@ const el = {
   video: document.getElementById('stream')
 };
 
+const cropState = {
+  x: 0,
+  y: 0,
+  width: 4056,
+  height: 3040,
+  sensorWidth: 4056,
+  sensorHeight: 3040
+};
+
+function applySignalFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get('signal');
+  if (fromQuery) {
+    el.signal.value = fromQuery;
+  }
+}
+
 function setStatus(text, cls) {
   el.status.textContent = text;
   el.status.className = cls || '';
+}
+
+function parseSensorSize() {
+  const m = (el.sensorSize.value || '').trim().match(/^(\d+)x(\d+)$/i);
+  if (!m) {
+    throw new Error('Invalid sensor size format, expected WxH (e.g. 4056x3040)');
+  }
+  return { w: Number(m[1]), h: Number(m[2]) };
+}
+
+function getServerBaseUrl() {
+  const raw = el.signal.value.trim();
+  const u = new URL(raw);
+  return u.origin;
+}
+
+function clampCrop(crop) {
+  crop.width = Math.max(64, Math.min(crop.width, cropState.sensorWidth));
+  crop.height = Math.max(64, Math.min(crop.height, cropState.sensorHeight));
+  crop.x = Math.max(0, Math.min(crop.x, cropState.sensorWidth - crop.width));
+  crop.y = Math.max(0, Math.min(crop.y, cropState.sensorHeight - crop.height));
+}
+
+function formatCropValue(crop) {
+  return `(${crop.x},${crop.y})/${crop.width}x${crop.height}`;
+}
+
+async function sendCrop() {
+  const baseUrl = getServerBaseUrl();
+  const value = formatCropValue(cropState);
+  const url = `${baseUrl}/option?device=CAMERA&key=scalercrop&value=${encodeURIComponent(value)}`;
+  const resp = await fetch(url, { method: 'POST' });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`crop update failed: HTTP ${resp.status} ${txt || ''}`.trim());
+  }
+  el.cropValue.value = value;
+}
+
+function readCropFromSei(meta) {
+  if (!Number.isFinite(meta.x) || !Number.isFinite(meta.y) || !Number.isFinite(meta.width) || !Number.isFinite(meta.height)) {
+    return;
+  }
+  cropState.x = Math.max(0, meta.x);
+  cropState.y = Math.max(0, meta.y);
+  cropState.width = Math.max(1, meta.width);
+  cropState.height = Math.max(1, meta.height);
+  clampCrop(cropState);
+  el.cropValue.value = formatCropValue(cropState);
+}
+
+async function applyCropEdit(editFn) {
+  try {
+    const { w, h } = parseSensorSize();
+    cropState.sensorWidth = w;
+    cropState.sensorHeight = h;
+    editFn(cropState);
+    clampCrop(cropState);
+    await sendCrop();
+    setStatus('Crop updated', 'ok');
+  } catch (e) {
+    setStatus(String(e.message || e), 'err');
+    console.log(e);
+  }
 }
 
 function readU32BE(a, off) {
@@ -144,6 +234,7 @@ function onMetadata(meta) {
   el.cropH.textContent = String(meta.height);
   el.captureTs.textContent = String(meta.captureTsUs);
   el.updatedAt.textContent = new Date().toLocaleTimeString();
+  readCropFromSei(meta);
 }
 
 function startRenderedCounter() {
@@ -279,3 +370,46 @@ el.disconnect.addEventListener('click', () => {
   }
   setStatus('Disconnected', 'warn');
 });
+
+el.zoomIn.addEventListener('click', () => applyCropEdit((c) => {
+  const newW = Math.max(64, Math.round(c.width * 0.9));
+  const newH = Math.max(64, Math.round(c.height * 0.9));
+  c.x += Math.round((c.width - newW) / 2);
+  c.y += Math.round((c.height - newH) / 2);
+  c.width = newW;
+  c.height = newH;
+}));
+
+el.zoomOut.addEventListener('click', () => applyCropEdit((c) => {
+  const newW = Math.min(c.sensorWidth, Math.round(c.width * 1.1));
+  const newH = Math.min(c.sensorHeight, Math.round(c.height * 1.1));
+  c.x -= Math.round((newW - c.width) / 2);
+  c.y -= Math.round((newH - c.height) / 2);
+  c.width = newW;
+  c.height = newH;
+}));
+
+el.moveLeft.addEventListener('click', () => applyCropEdit((c) => {
+  c.x -= Math.max(8, Math.round(c.width * 0.08));
+}));
+
+el.moveRight.addEventListener('click', () => applyCropEdit((c) => {
+  c.x += Math.max(8, Math.round(c.width * 0.08));
+}));
+
+el.moveUp.addEventListener('click', () => applyCropEdit((c) => {
+  c.y -= Math.max(8, Math.round(c.height * 0.08));
+}));
+
+el.moveDown.addEventListener('click', () => applyCropEdit((c) => {
+  c.y += Math.max(8, Math.round(c.height * 0.08));
+}));
+
+el.resetCrop.addEventListener('click', () => applyCropEdit((c) => {
+  c.x = 0;
+  c.y = 0;
+  c.width = c.sensorWidth;
+  c.height = c.sensorHeight;
+}));
+
+applySignalFromQuery();

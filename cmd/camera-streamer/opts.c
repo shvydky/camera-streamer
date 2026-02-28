@@ -53,7 +53,8 @@ http_server_options_t http_options = {
 
 log_options_t log_options = {
   .debug = false,
-  .verbose = false
+  .verbose = false,
+  .v4l2_crop_match_us = 2000
 };
 
 rtsp_options_t rtsp_options = {
@@ -140,6 +141,7 @@ option_t all_options[] = {
   DEFINE_OPTION_DEFAULT(log, debug, bool, "1", "Enable debug logging."),
   DEFINE_OPTION_DEFAULT(log, verbose, bool, "1", "Enable verbose logging."),
   DEFINE_OPTION_DEFAULT(log, stats, uint, "1", "Print statistics every duration."),
+  DEFINE_OPTION_DEFAULT(log, v4l2_crop_match_us, ulong, "2000", "V4L2 crop timestamp match window in microseconds."),
   DEFINE_OPTION_PTR(log, filter, list, "Enable debug logging from the given files. Ex.: `-log-filter=buffer.cc`"),
 
   {}
