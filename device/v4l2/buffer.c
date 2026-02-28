@@ -4,6 +4,65 @@
 #include "device/device.h"
 #include "util/opts/log.h"
 
+#include <pthread.h>
+
+typedef struct {
+  int dev_fd;
+  uint64_t ts_us;
+  struct {
+    int32_t x;
+    int32_t y;
+    uint32_t width;
+    uint32_t height;
+  } crop;
+} v4l2_crop_entry_t;
+
+#define V4L2_CROP_RING_SIZE 512
+static v4l2_crop_entry_t v4l2_crop_ring[V4L2_CROP_RING_SIZE];
+static size_t v4l2_crop_ring_pos = 0;
+static pthread_mutex_t v4l2_crop_ring_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void v4l2_crop_ring_record(buffer_t *buf)
+{
+  if (!buf || !buf->buf_list || !buf->buf_list->v4l2) {
+    return;
+  }
+
+  pthread_mutex_lock(&v4l2_crop_ring_lock);
+  v4l2_crop_entry_t *entry = &v4l2_crop_ring[v4l2_crop_ring_pos % V4L2_CROP_RING_SIZE];
+  entry->dev_fd = buf->buf_list->v4l2->dev_fd;
+  entry->ts_us = buf->captured_time_us;
+  entry->crop.x = buf->crop.x;
+  entry->crop.y = buf->crop.y;
+  entry->crop.width = buf->crop.width;
+  entry->crop.height = buf->crop.height;
+  v4l2_crop_ring_pos++;
+  pthread_mutex_unlock(&v4l2_crop_ring_lock);
+}
+
+static bool v4l2_crop_ring_lookup(buffer_list_t *buf_list, uint64_t ts_us, buffer_t *out_buf)
+{
+  if (!buf_list || !buf_list->v4l2 || !out_buf) {
+    return false;
+  }
+
+  bool found = false;
+  pthread_mutex_lock(&v4l2_crop_ring_lock);
+  for (size_t i = 0; i < V4L2_CROP_RING_SIZE; i++) {
+    v4l2_crop_entry_t *entry = &v4l2_crop_ring[i];
+    if (entry->dev_fd == buf_list->v4l2->dev_fd && entry->ts_us == ts_us) {
+      out_buf->crop.x = entry->crop.x;
+      out_buf->crop.y = entry->crop.y;
+      out_buf->crop.width = entry->crop.width;
+      out_buf->crop.height = entry->crop.height;
+      found = true;
+      break;
+    }
+  }
+  pthread_mutex_unlock(&v4l2_crop_ring_lock);
+  return found;
+}
+
 int v4l2_buffer_open(buffer_t *buf)
 {
   struct v4l2_buffer v4l2_buf = {0};
@@ -118,6 +177,7 @@ int v4l2_buffer_enqueue(buffer_t *buf, const char *who)
 
   v4l2_buf.timestamp.tv_sec = buf->captured_time_us / (1000LL * 1000LL);
   v4l2_buf.timestamp.tv_usec = buf->captured_time_us % (1000LL * 1000LL);
+  v4l2_crop_ring_record(buf);
 
   ERR_IOCTL(buf, buf->buf_list->v4l2->dev_fd, VIDIOC_QBUF, &v4l2_buf, "Can't queue buffer.");
 
@@ -153,11 +213,13 @@ int v4l2_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
   buf->flags.is_keyframe = (v4l2_buf.flags & V4L2_BUF_FLAG_KEYFRAME) != 0;
   buf->flags.is_last = (v4l2_buf.flags & V4L2_BUF_FLAG_LAST) != 0;
   buf->captured_time_us = get_time_us(CLOCK_FROM_PARAMS, NULL, &v4l2_buf.timestamp, 0);
-  // V4L2 path does not provide crop metadata directly, fallback to full frame.
-  buf->crop.x = 0;
-  buf->crop.y = 0;
-  buf->crop.width = buf_list->fmt.width;
-  buf->crop.height = buf_list->fmt.height;
+  if (!v4l2_crop_ring_lookup(buf_list, buf->captured_time_us, buf)) {
+    // Fallback for sources/paths that do not preserve timestamps.
+    buf->crop.x = 0;
+    buf->crop.y = 0;
+    buf->crop.width = buf_list->fmt.width;
+    buf->crop.height = buf_list->fmt.height;
+  }
   return 0;
 
 error:
