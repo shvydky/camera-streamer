@@ -101,6 +101,28 @@ static rtc::binary prepend_sei_metadata(const rtc::binary &h264, uint64_t frame_
     return h264;
   }
 
+  auto starts_with_annexb = [](const rtc::binary &data) {
+    if (data.size() >= 4 &&
+        data[0] == (std::byte)0x00 &&
+        data[1] == (std::byte)0x00 &&
+        data[2] == (std::byte)0x00 &&
+        data[3] == (std::byte)0x01) {
+      return true;
+    }
+    if (data.size() >= 3 &&
+        data[0] == (std::byte)0x00 &&
+        data[1] == (std::byte)0x00 &&
+        data[2] == (std::byte)0x01) {
+      return true;
+    }
+    return false;
+  };
+
+  // Only inject SEI for Annex-B streams; otherwise keep frame untouched.
+  if (!starts_with_annexb(h264)) {
+    return h264;
+  }
+
   // Metadata schema v1:
   // magic[4]="CSM1", frame_id(u64), x(i32), y(i32), width(u32), height(u32), capture_ts_us(u64)
   // NOTE: this branch does not expose per-frame crop in buffer_t, so x/y use 0 and

@@ -57,6 +57,7 @@
     let rendered = 0;
     let encoded = 0;
     let seiCount = 0;
+    let retriedWithoutTransform = false;
 
     const el = {
       status: document.getElementById('status'),
@@ -204,11 +205,11 @@
       el.video.requestVideoFrameCallback(tick);
     }
 
-    function setupEncodedTransform(receiver) {
+    function setupEncodedTransform(receiver, enabled) {
       const supported = typeof receiver.createEncodedStreams === 'function';
-      el.encodedSupport.textContent = supported ? 'yes' : 'no';
+      el.encodedSupport.textContent = supported ? (enabled ? 'yes (active)' : 'yes (off)') : 'no';
       el.encodedSupport.className = supported ? 'ok' : 'warn';
-      if (!supported) return;
+      if (!enabled || !supported) return;
 
       const streams = receiver.createEncodedStreams();
       const ts = new TransformStream({
@@ -230,7 +231,7 @@
       });
     }
 
-    async function startWebRTC() {
+    async function startWebRTC(transformEnabled) {
       const params = Object.fromEntries(new URLSearchParams(window.location.search).entries());
       const signalUrl = params.signal || '/webrtc';
       el.signalPath.textContent = signalUrl;
@@ -253,7 +254,7 @@
       pc = new RTCPeerConnection({
         sdpSemantics: 'unified-plan',
         iceServers: offer.iceServers,
-        encodedInsertableStreams: true
+        encodedInsertableStreams: !!transformEnabled
       });
 
       pc.remote_pc_id = offer.id;
@@ -264,13 +265,27 @@
       });
 
       const tr = pc.addTransceiver('video', { direction: 'recvonly' });
-      setupEncodedTransform(tr.receiver);
+      setupEncodedTransform(tr.receiver, !!transformEnabled);
 
       pc.addEventListener('track', (evt) => {
         if (evt.streams && evt.streams[0]) {
           el.video.srcObject = evt.streams[0];
           startRenderedCounter();
           setStatus('Video connected', 'ok');
+
+          if (transformEnabled && !retriedWithoutTransform) {
+            setTimeout(() => {
+              if (rendered === 0 && pc) {
+                retriedWithoutTransform = true;
+                setStatus('No rendered frames with transform. Reconnecting without transform...', 'warn');
+                pc.close();
+                pc = null;
+                startWebRTC(false).catch((e) => {
+                  setStatus('Fallback failed: ' + e.message, 'err');
+                });
+              }
+            }, 2500);
+          }
         }
       });
 
@@ -308,7 +323,7 @@
     });
 
     window.addEventListener('load', () => {
-      startWebRTC().catch((e) => {
+      startWebRTC(true).catch((e) => {
         setStatus('WebRTC failed: ' + e.message, 'err');
         console.log(e);
       });
