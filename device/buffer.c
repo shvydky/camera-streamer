@@ -14,6 +14,7 @@ buffer_t *buffer_open(const char *name, buffer_list_t *buf_list, int index) {
   buf->mmap_reflinks = 1;
   buf->used = 0;
   buf->sensor_ts_us = 0;
+  buf->sensor_epoch_us = 0;
   buf->crop.x = 0;
   buf->crop.y = 0;
   buf->crop.width = buf_list->fmt.width;

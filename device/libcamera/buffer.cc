@@ -147,11 +147,30 @@ int libcamera_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
     get<int64_t>(libcamera::controls::SensorTimestamp));
   uint64_t sensor_timestamp_us = sensor_timestamp.value_or(0) / 1000;
   uint64_t boot_time_us = get_time_us(CLOCK_BOOTTIME, NULL, NULL, 0);
+  uint64_t realtime_now_us = get_time_us(CLOCK_REALTIME, NULL, NULL, 0);
 
   uint64_t now_us = get_monotonic_time_us(NULL, NULL);
+  uint64_t sensor_ts_us = sensor_timestamp_us;
+  if (!sensor_ts_us) {
+    sensor_ts_us = now_us;
+  }
 
-  (*bufp)->captured_time_us = now_us - (boot_time_us - sensor_timestamp_us);
-  (*bufp)->sensor_ts_us = sensor_timestamp_us ? sensor_timestamp_us : (*bufp)->captured_time_us;
+  if (boot_time_us >= sensor_ts_us) {
+    (*bufp)->captured_time_us = now_us - (boot_time_us - sensor_ts_us);
+  } else {
+    (*bufp)->captured_time_us = now_us + (sensor_ts_us - boot_time_us);
+  }
+  (*bufp)->sensor_ts_us = sensor_ts_us;
+
+  uint64_t sensor_epoch_us = 0;
+  if (realtime_now_us > 0 && boot_time_us > 0 && sensor_ts_us > 0) {
+    if (boot_time_us >= sensor_ts_us) {
+      sensor_epoch_us = realtime_now_us - (boot_time_us - sensor_ts_us);
+    } else {
+      sensor_epoch_us = realtime_now_us + (sensor_ts_us - boot_time_us);
+    }
+  }
+  (*bufp)->sensor_epoch_us = sensor_epoch_us;
   (*bufp)->used = 0;
 
   for (auto &bufferMap : (*bufp)->libcamera->request->buffers()) {

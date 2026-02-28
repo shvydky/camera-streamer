@@ -46,6 +46,7 @@ int dummy_buffer_list_dequeue(buffer_list_t *buf_list, buffer_t **bufp)
 
   *bufp = buf_list->bufs[index];
   (*bufp)->sensor_ts_us = (*bufp)->captured_time_us;
+  (*bufp)->sensor_epoch_us = 0;
   (*bufp)->crop.x = 0;
   (*bufp)->crop.y = 0;
   (*bufp)->crop.width = buf_list->fmt.width;
