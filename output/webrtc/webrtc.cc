@@ -140,6 +140,18 @@ static rtc::binary prepend_sei_metadata(const rtc::binary &h264, uint64_t frame_
   uint64_t sensor_ts_us = buf->sensor_ts_us ? buf->sensor_ts_us : buf->captured_time_us;
   write_u64_be(payload + 36, sensor_ts_us);
   uint64_t sensor_epoch_us = buf->sensor_epoch_us;
+  if (sensor_epoch_us == 0 && sensor_ts_us > 0) {
+    // Fallback for non-libcamera paths where sensor_epoch is unknown.
+    uint64_t realtime_now_us = get_time_us(CLOCK_REALTIME, NULL, NULL, 0);
+    uint64_t boottime_now_us = get_time_us(CLOCK_BOOTTIME, NULL, NULL, 0);
+    if (realtime_now_us > 0 && boottime_now_us > 0) {
+      if (boottime_now_us >= sensor_ts_us) {
+        sensor_epoch_us = realtime_now_us - (boottime_now_us - sensor_ts_us);
+      } else {
+        sensor_epoch_us = realtime_now_us + (sensor_ts_us - boottime_now_us);
+      }
+    }
+  }
   write_u64_be(payload + 44, sensor_epoch_us);
 
   static const std::array<uint8_t, 16> kUuid = {
