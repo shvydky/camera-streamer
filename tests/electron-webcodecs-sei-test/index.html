@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Electron WebCodecs SEI Test</title>
+  <style>
+    body { margin: 0; background: #0f1720; color: #dbe7f3; font-family: ui-monospace, Menlo, monospace; }
+    .page { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; padding: 12px; }
+    .card { background: #172433; border: 1px solid #2a3b4f; border-radius: 10px; overflow: hidden; }
+    .video-wrap { position: relative; aspect-ratio: 16 / 9; background: #000; }
+    #canvas { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
+    #status { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.65); padding: 6px 8px; border-radius: 6px; }
+    .panel { padding: 10px; font-size: 13px; }
+    .row { margin-bottom: 10px; }
+    .row input { width: 100%; box-sizing: border-box; background: #0f1b27; color: #dbe7f3; border: 1px solid #2a3b4f; border-radius: 6px; padding: 8px; }
+    .row button { background: #26435f; color: #dbe7f3; border: 1px solid #3f6383; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+    .kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; }
+    .k { color: #9eb2c8; }
+    .ok { color: #49d38a; }
+    .warn { color: #ffd166; }
+    .err { color: #ff6b6b; }
+    @media (max-width: 960px) { .page { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="card">
+      <div class="video-wrap">
+        <canvas id="canvas"></canvas>
+        <div id="status">Idle</div>
+      </div>
+    </section>
+    <aside class="card panel">
+      <div class="row">
+        <label for="signal">Signal URL</label>
+        <input id="signal" value="http://127.0.0.1:8081/webrtc" />
+      </div>
+      <div class="row">
+        <button id="connect">Connect</button>
+        <button id="disconnect">Disconnect</button>
+      </div>
+      <div class="row">
+        <label for="sensorSize">Sensor Size (WxH)</label>
+        <input id="sensorSize" value="4056x3040" />
+      </div>
+      <div class="row">
+        <div>Camera Crop Control</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px;">
+          <button id="zoomIn">Zoom In</button>
+          <button id="moveUp">Up</button>
+          <button id="zoomOut">Zoom Out</button>
+          <button id="moveLeft">Left</button>
+          <button id="resetCrop">Reset</button>
+          <button id="moveRight">Right</button>
+          <span></span>
+          <button id="moveDown">Down</button>
+          <span></span>
+        </div>
+      </div>
+      <div class="row">
+        <label for="cropValue">Last Sent scalercrop</label>
+        <input id="cropValue" value="(0,0)/4056x3040" readonly />
+      </div>
+      <div class="kv">
+        <span class="k">Encoded streams</span><span id="encodedSupport">-</span>
+        <span class="k">Decoder</span><span id="decoderStatus">-</span>
+        <span class="k">Rendered frames</span><span id="renderedFrames">0</span>
+        <span class="k">Encoded frames</span><span id="encodedFrames">0</span>
+        <span class="k">Decoded frames</span><span id="decodedFrames">0</span>
+        <span class="k">SEI messages</span><span id="seiCount">0</span>
+        <span class="k">frame_id</span><span id="frameId">-</span>
+        <span class="k">X</span><span id="cropX">-</span>
+        <span class="k">Y</span><span id="cropY">-</span>
+        <span class="k">Width</span><span id="cropW">-</span>
+        <span class="k">Height</span><span id="cropH">-</span>
+        <span class="k">capture_ts_us</span><span id="captureTs">-</span>
+        <span class="k">sensor_ts_us</span><span id="sensorTs">-</span>
+        <span class="k">sensor_epoch_us</span><span id="sensorEpochTs">-</span>
+        <span class="k">Updated</span><span id="updatedAt">-</span>
+      </div>
+    </aside>
+  </main>
+  <script src="./renderer.js"></script>
+</body>
+</html>
