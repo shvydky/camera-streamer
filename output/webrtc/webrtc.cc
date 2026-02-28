@@ -103,16 +103,24 @@ static rtc::binary prepend_sei_metadata(const rtc::binary &h264, uint64_t frame_
 
   // Metadata schema v1:
   // magic[4]="CSM1", frame_id(u64), x(i32), y(i32), width(u32), height(u32), capture_ts_us(u64)
+  // NOTE: this branch does not expose per-frame crop in buffer_t, so x/y use 0 and
+  // width/height default to current output format.
   uint8_t payload[4 + 8 + 4 + 4 + 4 + 4 + 8] = {0};
   payload[0] = 'C';
   payload[1] = 'S';
   payload[2] = 'M';
   payload[3] = '1';
   write_u64_be(payload + 4, frame_id);
-  write_u32_be(payload + 12, (uint32_t)buf->crop.x);
-  write_u32_be(payload + 16, (uint32_t)buf->crop.y);
-  write_u32_be(payload + 20, buf->crop.width);
-  write_u32_be(payload + 24, buf->crop.height);
+  write_u32_be(payload + 12, 0);
+  write_u32_be(payload + 16, 0);
+  uint32_t width = 0;
+  uint32_t height = 0;
+  if (buf->buf_list) {
+    width = buf->buf_list->fmt.width;
+    height = buf->buf_list->fmt.height;
+  }
+  write_u32_be(payload + 20, width);
+  write_u32_be(payload + 24, height);
   write_u64_be(payload + 28, buf->captured_time_us);
 
   static const std::array<uint8_t, 16> kUuid = {
